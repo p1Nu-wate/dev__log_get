@@ -1,7 +1,6 @@
 import os
 import re
 import csv
-from datetime import datetime
 
 # 指定ディレクトリ内の.logファイルを検索する関数
 def find_log_files(directory):
@@ -10,6 +9,7 @@ def find_log_files(directory):
         for file in files:
             if file.endswith(".log"):
                 log_files.append(os.path.join(root, file))
+    # print(log_files)
     return log_files
 
 # ログファイルから必要な情報を抽出する関数
@@ -17,16 +17,26 @@ def extract_log_info(log_file):
     log_info = []
     with open(log_file, 'r') as file:
         lines = file.readlines()
+        date = None
         for i, line in enumerate(lines):
-            if re.search(r'AVERAGE NOISE LEVEL \(- DB PER TIME INTERVAL\):', line):
-                # 日付の行を探索
-                for j in range(i - 1, -1, -1):
-                    if re.match(r'\d{2}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}', lines[j].strip()):
-                        date = lines[j].strip()
-                        break
-                noise_values = [int(val) for val in lines[i + 2].split()]
-                log_info.append((date, noise_values))
+            # 日付のフォーマットを修正する (月/日/年 -> 年/月/日)
+            date_match = re.match(r'(\d{2})/(\d{2})/(\d{2}) (\d{2}:\d{2}:\d{2})', line.strip())
+            if date_match:
+                mm, dd, yy, time = date_match.groups()
+                date = f"20{yy}/{mm}/{dd} {time}"
+                # print("Found date:", date)
+
+            # 'AVERAGE NOISE LEVEL' の行を大文字小文字を区別せずに検索
+            if re.search(r'average noise level \(-dbm per time interval\):', line, re.IGNORECASE):
+                if date:
+                    # ノイズレベルの値を抽出する
+                    noise_values = [int(val) for val in re.findall(r'-?\d+', lines[i + 2])]
+                    log_info.append((date, noise_values))
+    # print(log_info)
     return log_info
+
+
+
 
 # CSVファイルにデータを書き込む関数
 def write_csv(output_file, log_info):
@@ -38,8 +48,8 @@ def write_csv(output_file, log_info):
             csv_writer.writerow(row)
 
 if __name__ == "__main__":
-    log_directory = "./log/"  # ログファイルが格納されているディレクトリを指定してください
-    output_csv_file = "./export/output_12.csv"  # 出力するCSVファイル名を指定してください
+    log_directory = "./log_Indonesia/remote/201705"  # ログファイルが格納されているディレクトリを指定してください
+    output_csv_file = "./export/Indonesia_1705/remote/output_0.csv"  # 出力するCSVファイル名を指定してください
 
     log_files = find_log_files(log_directory)
     log_info = []
@@ -47,6 +57,7 @@ if __name__ == "__main__":
     for log_file in log_files:
         log_info.extend(extract_log_info(log_file))
 
+    # print(log_info)
     if log_info:
         write_csv(output_csv_file, log_info)
         print("CSVファイルにデータを出力しました。")
